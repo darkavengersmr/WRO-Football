@@ -1,0 +1,527 @@
+// нападающий
+//                    вариант 1        вариант 2 (более крутые углы)
+#define HA_P33 16     // 12   (12)      16  (16)
+#define HA_P23 7      // 7    (19)      7   (23)
+#define HA_P13 22     // 20   (39)      22  (45)
+#define TC_L11 0      // 12   (51)      0   (45)
+#define TC_L21 22     // 20   (71)      22  (67)
+#define TC_L31 7      // 7    (78)      7   (74)
+#define TC_L12 16     // 12   (90)      16  (90)
+#define TC_L33 16     // 12   (102)     16  (106)
+#define TC_L23 7      // 7    (109)     7   (113)
+#define TC_L13 22     // 20   (129)     22  (135)
+#define HA_O11 0      // 12   (141)     0   (135)
+#define HA_O21 22     // 20   (161)     22  (157)
+#define HA_O31 7      // 7    (168)     7   (164)
+#define HA_O12 16     // 12   (180)     16  (180)
+#define HA_O33 16     // 12   (192)     16  (196)
+#define HA_O23 7      // 7    (199)     7   (203)
+#define HA_O13 22     // 20   (219)     22  (225)
+#define TC_R11 0      // 12   (231)     0   (225)
+#define TC_R21 22     // 20   (251)     22  (247)
+#define TC_R31 7      // 7    (258)     7   (254)
+#define TC_R12 16     // 12   (270)     16  (270)
+#define TC_R33 16     // 12   (282)     16  (286)
+#define TC_R23 7      // 7    (289)     7   (293)
+#define TC_R13 22     // 20   (309)     22  (315)
+#define HA_P11 0      // 12   (321)     0   (315)
+#define HA_P21 22     // 20   (341)     22  (337)
+#define HA_P31 7      // 7    (348)     7   (344)
+#define HA_emd 16     // 12   (360)     16  (360)
+
+// вратарь
+//                    вариант 2 (более крутые углы)
+#define CAL_P11       16    // 15
+#define CAL_P21       7     // 25
+#define CAL_P31       22    // 45
+#define CAL_Right_P   45    // 90
+#define CAL_O33       45    // 135
+#define CAL_O23       22    // 155
+#define CAL_O13       7     // 165
+#define CAL_O12       16    // 180
+#define CAL_O11       16    // 195
+#define CAL_O21       7     // 205
+#define CAL_O31       22    // 235
+#define CAL_Left_P    45    // 270
+#define CAL_P33       45    // 305
+#define CAL_P23       22    // 335
+#define CAL_P13       7     // 345
+#define CAL_end       16    // 360
+
+
+// “очки схода
+int TC_L[4][4];
+int TC_R[4][4];
+
+int HA_P[4][4];
+int HA_O[4][4];
+
+int CAL_P[4][4];
+int CAL_O[4][4];
+
+int robot = 0; // далее выбор 1 - нападающий, 2 - вратарь
+
+byte fh;
+
+int fsize,sever,ug,Right_P,Right_O,Left_P,Left_O;
+int time = 800;
+int base = 0;
+float base_napad = 150.0;
+float base_vratar = 175.0;// ≈сли не доворачиваетс€ изменить
+int speed = 50;
+float diameter = 81.6;
+
+//‘лаг, отслеживающий нажатие центральной кнопки
+bool flExit = false;
+
+int CompassTarget(int Target)
+{
+  return (SensorHTCompass(IN_2) + 540 - Target)%360 - 180;
+}
+
+void Krug_napad()
+{
+  sever = SensorHTCompass(IN_2);
+  HA_P[1][2] = sever;
+  HA_P[2][2] = sever;
+  HA_P[3][2] = sever;
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_P33, 100, true, true);
+  Wait(time);
+  HA_P[3][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_P23, 100, true, true);
+  Wait(time);
+  HA_P[2][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_P13, 100, true, true);
+  Wait(time);
+  HA_P[1][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L11, 100, true, true);
+  Wait(time);
+  TC_L[1][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L21, 100, true, true);
+  Wait(time);
+  TC_L[2][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L31, 100, true, true);
+  Wait(time);
+  TC_L[3][1] = SensorHTCompass(IN_2);
+
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L12, 100, true, true);
+  Wait(time);
+  TC_L[1][2] = SensorHTCompass(IN_2);
+  TC_L[2][2] = TC_L[1][2];
+  TC_L[3][2] = TC_L[1][2];
+
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L33, 100, true, true);
+  Wait(time);
+  TC_L[3][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L23, 100, true, true);
+  Wait(time);
+  TC_L[2][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_L13, 100, true, true);
+  Wait(time);
+  TC_L[1][3] = SensorHTCompass(IN_2);
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O11, 100, true, true);
+  Wait(time);
+  HA_O[1][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O21, 100, true, true);
+  Wait(time);
+  HA_O[2][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O31, 100, true, true);
+  Wait(time);
+  HA_O[3][1] = SensorHTCompass(IN_2);
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O12, 100, true, true);
+  Wait(time);
+  ug = SensorHTCompass(IN_2);
+  HA_O[1][2] = ug;
+  HA_O[2][2] = ug;
+  HA_O[3][2] = ug;
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O33, 100, true, true);
+  Wait(time);
+  HA_O[3][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O23, 100, true, true);
+  Wait(time);
+  HA_O[2][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_O13, 100, true, true);
+  Wait(time);
+  HA_O[1][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R11, 100, true, true);
+  Wait(time);
+  TC_R[1][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R21, 100, true, true);
+  Wait(time);
+  TC_R[2][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R31, 100, true, true);
+  Wait(time);
+  TC_R[3][1] = SensorHTCompass(IN_2);
+
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R12, 100, true, true);
+  Wait(time);
+  TC_R[1][2] = SensorHTCompass(IN_2);
+  TC_R[2][2] = TC_L[1][2];
+  TC_R[3][2] = TC_L[1][2];
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R33, 100, true, true);
+  Wait(time);
+  TC_R[3][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R23, 100, true, true);
+  Wait(time);
+  TC_R[2][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*TC_R13, 100, true, true);
+  Wait(time);
+  TC_R[1][3] = SensorHTCompass(IN_2);
+
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_P11, 100, true, true);
+  Wait(time);
+  HA_P[1][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_P21, 100, true, true);
+  Wait(time);
+  HA_P[2][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_P31, 100, true, true);
+  Wait(time);
+  HA_P[3][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*HA_emd, 100, true, true);
+  Wait(time);
+
+}
+
+void Krug_vratar()
+{
+  sever = SensorHTCompass(IN_2);
+  CAL_P[1][2] = sever;
+  CAL_P[2][2] = sever;
+  CAL_P[3][2] = sever;
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_P11, 100, true, true);
+  Wait(time);
+  CAL_P[1][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_P21, 100, true, true);
+  Wait(time);
+  CAL_P[2][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_P31, 100, true, true);
+  Wait(time);
+  CAL_P[3][1] = SensorHTCompass(IN_2);
+
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_Right_P, 100, true, true);
+  Wait(time);
+  Right_P =  SensorHTCompass(IN_2);
+  Left_O = Right_P;
+
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O33, 100, true, true);
+  Wait(time);
+  CAL_O[3][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O23, 100, true, true);
+  Wait(time);
+  CAL_O[2][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O13, 100, true, true);
+  Wait(time);
+  CAL_O[1][3] = SensorHTCompass(IN_2);
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O12, 100, true, true);
+  Wait(time);
+  ug = SensorHTCompass(IN_2);
+  CAL_O[1][2] = ug;
+  CAL_O[2][2] = ug;
+  CAL_O[3][2] = ug;
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O11, 100, true, true);
+  Wait(time);
+  CAL_O[1][1] = SensorHTCompass(IN_2);
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O21, 100, true, true);
+  Wait(time);
+  CAL_O[2][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_O31, 100, true, true);
+  Wait(time);
+  CAL_O[3][1] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_Left_P, 100, true, true);
+  Wait(time);
+  Left_P = SensorHTCompass(IN_2);
+  Right_O = Left_P;
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_P33, 100, true, true);
+  Wait(time);
+  CAL_P[3][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_P23, 100, true, true);
+  Wait(time);
+  CAL_P[2][3] = SensorHTCompass(IN_2);
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_P13, 100, true, true);
+  Wait(time);
+  CAL_P[1][3] = SensorHTCompass(IN_2);
+
+
+  RotateMotorEx(OUT_BC, speed, base/diameter*CAL_end, 100, true, true);
+
+
+}
+
+
+task main()
+{
+
+  for(int y = 1; y <= 3; y++)
+  {
+    for(int x = 1; x <= 3; x++)
+    {
+    TC_L[x][y] = 0;
+    TC_R[x][y] = 0;
+    HA_P[x][y] = 0;
+    HA_O[x][y] = 0;
+    CAL_P[x][y] = 0;
+    CAL_O[x][y] = 0;
+    }
+  }
+
+  ClearScreen();
+  TextOut(0, LCD_LINE1, "ZZZ ZZZ ZZZ ZZZ");
+  TextOut(0, LCD_LINE2, "  Z Z Z Z Z Z");
+  TextOut(0, LCD_LINE3, " Z  Z Z Z Z ZZ");
+  TextOut(0, LCD_LINE4, "Z   Z Z Z Z Z");
+  TextOut(0, LCD_LINE5, "ZZZ ZZZ Z Z ZZZ");
+  TextOut(0, LCD_LINE6, "COMPASSS CALIB !!!");
+  TextOut(0, LCD_LINE7, " LEFT < NAPAD");
+  TextOut(0, LCD_LINE8, " RIGHT > VRATAR");
+
+  while (!flExit)
+  {
+    if (ButtonPressed(BTNCENTER, true) && robot != 0) flExit = true;
+    if (ButtonPressed(BTNLEFT, true))
+    {
+      ClearScreen();
+      TextOut(0, LCD_LINE7, "NAPAD SELECT");
+      robot = 1;
+      base = base_napad;
+    }
+    if (ButtonPressed(BTNRIGHT, true))
+    {
+      ClearScreen();
+      TextOut(0, LCD_LINE8, "VRATAR SELECT");
+      robot = 2;
+      base = base_vratar;
+    }
+  }
+
+  ClearScreen();
+  Wait(1000);
+  flExit = false;
+
+
+  SetSensorLowspeed(IN_2);
+  Wait(1000);
+
+  while (!flExit)
+  {
+  if (ButtonPressed(BTNRIGHT, true))
+    {
+    ClearScreen();
+    Wait(1000);
+    }
+
+  if (!flExit)
+    if (robot == 1) Krug_napad();
+    else Krug_vratar();
+
+  float delta = CompassTarget(sever);
+
+  // вывод на экран
+  ClearScreen();
+  TextOut(0, LCD_LINE5, "COMPASS ERROR:");
+  NumOut(0, LCD_LINE6, delta);
+
+  base = base * (1-delta/360);
+  TextOut(0, LCD_LINE7, "NEW BASE:");
+  NumOut(0, LCD_LINE8, base);
+
+  while (!ButtonPressed(BTNCENTER, true) && !ButtonPressed(BTNRIGHT, true));
+
+  if (ButtonPressed(BTNCENTER, true)) flExit = true;
+
+  }
+
+  if (robot == 1)
+    {
+    DeleteFile("CAL_Comp_1.txt");
+    CreateFile("CAL_Comp_1.txt", 1024, fh);
+
+    int tmp;
+    WriteLn(fh,sever);
+    WriteLn(fh,ug);
+  
+    for(int y = 1; y <= 3; y++)
+    {
+      for(int x = 1; x <= 3; x++)
+      {
+        tmp = TC_L[x][y];
+        WriteLn(fh,tmp);
+
+        tmp = TC_R[x][y];
+        WriteLn(fh,tmp);
+
+        tmp = HA_P[x][y];
+        WriteLn(fh,tmp);
+      
+        tmp = HA_O[x][y];
+        WriteLn(fh,tmp);
+      }
+    }
+    CloseFile(fh);
+
+    Wait(500);
+
+
+    OpenFileRead("CAL_Comp_1.txt",fsize,fh);
+
+    ReadLn(fh,tmp);
+    sever = tmp;
+
+    ReadLn(fh,tmp);
+    ug = tmp;
+
+    for(int y = 1; y <= 3; y++)
+    {
+      for(int x = 1; x <= 3; x++)
+      {
+        ClearScreen();
+
+        ReadLn(fh,tmp);
+        TC_L[x][y] = tmp;
+
+        NumOut(0, LCD_LINE3, TC_L[x][y]);
+
+        ReadLn(fh,tmp);
+        TC_R[x][y] = tmp;
+
+        NumOut(0, LCD_LINE4, TC_R[x][y]);
+
+        ReadLn(fh,tmp);
+        HA_P[x][y] = tmp;
+
+        NumOut(0, LCD_LINE5, HA_P[x][y]);
+
+        ReadLn(fh,tmp);
+        HA_O[x][y] = tmp;
+
+        NumOut(0, LCD_LINE6, HA_O[x][y]);
+
+        Wait(200);
+      }
+    }
+    CloseFile(fh);
+  }
+  else
+  {
+    DeleteFile("CAL_Comp_2.txt");
+    CreateFile("CAL_Comp_2.txt", 1024, fh);
+
+    WriteLn(fh,sever);
+    WriteLn(fh,ug);
+
+    WriteLn(fh,Right_P);
+    WriteLn(fh,Right_O);
+
+    WriteLn(fh,Left_P);
+    WriteLn(fh,Left_O);
+
+    int tmp;
+
+    for(int y = 1; y <= 3; y++)
+    {
+      for(int x = 1; x <= 3; x++)
+      {
+        tmp = CAL_P[x][y];
+        WriteLn(fh,tmp);
+
+        tmp = CAL_O[x][y];
+        WriteLn(fh,tmp);
+      }
+    }
+    CloseFile(fh);
+
+    Wait(500);
+
+    OpenFileRead("CAL_Comp_2.txt",fsize,fh);
+
+    ReadLn(fh,sever);
+    ReadLn(fh,ug);
+
+    ReadLn(fh,Right_P);
+    ReadLn(fh,Right_O);
+
+    ReadLn(fh,Left_P);
+    ReadLn(fh,Left_O);
+
+    for(int y = 1; y <= 3; y++)
+    {
+      for(int x = 1; x <= 3; x++)
+      {
+        ClearScreen();
+
+        ReadLn(fh,tmp);
+        CAL_P[x][y] = tmp;
+
+        NumOut(0, LCD_LINE6, CAL_P[x][y]);
+
+        ReadLn(fh,tmp);
+        CAL_O[x][y] = tmp;
+
+        NumOut(0, LCD_LINE7, CAL_O[x][y]);
+
+        Wait(200);
+      }
+    }
+    CloseFile(fh);
+  }
+
+  TextOut(24, LCD_LINE8, "File OK");
+  while (!ButtonPressed(BTNCENTER, true));
+
+}
+

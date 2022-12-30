@@ -1,0 +1,161 @@
+int round(float Num_float)
+{
+  int Num_tmp = Num_float;
+  if (Num_float - Num_tmp >= 0.5)
+  {
+    Num_tmp = ceil(Num_float);
+  }
+  else
+  {
+    Num_tmp = floor(Num_float);
+  }
+  return Num_tmp;
+}
+
+task main()
+{
+
+  SetSensorLowspeed(IN_4);
+
+  byte fh;
+
+  int fsize;
+  float sila,supersila;
+  int sila_int,supersila_int;
+  int s1, s2, s3, s4, s5,dir;
+
+  //Флаг, отслеживающий нажатие центральной кнопки
+  bool flExit = false;
+
+  int enc_sila = 0;
+  int enc_supersila = 0;
+
+  int enc_sila_napad = 400;
+  int enc_supersila_napad = 125;
+
+  int enc_sila_vratar = 650;
+  int enc_supersila_vratar = 100;
+
+  SetSensorLowspeed(IN_1);
+  
+  ClearScreen();
+  TextOut(0, LCD_LINE1, "BB   B  B   B  ");
+  TextOut(0, LCD_LINE2, "B B B B B   B  ");
+  TextOut(0, LCD_LINE3, "BB  BBB B   B  ");
+  TextOut(0, LCD_LINE4, "B B B B B   B  ");
+  TextOut(0, LCD_LINE5, "BB  B B BBB BBB");
+  TextOut(0, LCD_LINE6, "CALIBRATION");
+  TextOut(0, LCD_LINE7, " LEFT < NAPAD");
+  TextOut(0, LCD_LINE8, " RIGHT > VRATAR");
+
+  while (!flExit)
+  {
+    if (ButtonPressed(BTNCENTER, true) && enc_sila != 0) flExit = true;
+    if (ButtonPressed(BTNLEFT, true))
+    {
+      ClearScreen();
+      TextOut(0, LCD_LINE7, "NAPAD SELECT");
+      enc_sila = enc_sila_napad;
+      enc_supersila = enc_supersila_napad;
+    }
+    if (ButtonPressed(BTNRIGHT, true))
+    {
+      ClearScreen();
+      TextOut(0, LCD_LINE8, "VRATAR SELECT");
+      enc_sila = enc_sila_vratar;
+      enc_supersila = enc_supersila_vratar;
+    }
+  }
+
+  ClearScreen();
+  Wait(1000);
+
+  RotateMotorEx(OUT_BC, 30, enc_supersila, 0, true, true);
+
+  ReadSensorHTIRSeeker2AC(IN_1,dir, s1, s2, s3, s4, s5);
+  supersila = s1 + s2 + s3 + s4 + s5;
+  
+  repeat(100)
+  {
+    ReadSensorHTIRSeeker2AC(IN_1,dir, s1, s2, s3, s4, s5);
+    supersila = (supersila + (s1 + s2 + s3 + s4 + s5))/2;
+    Wait(10);
+  }
+
+  RotateMotorEx(OUT_BC, 30, enc_sila, 0, true, true);
+  
+  ReadSensorHTIRSeeker2AC(IN_1,dir, s1, s2, s3, s4, s5);
+  sila = s1 + s2 + s3 + s4 + s5;
+
+  repeat(100)
+  {
+    ReadSensorHTIRSeeker2AC(IN_1,dir, s1, s2, s3, s4, s5);
+    sila = (sila + (s1 + s2 + s3 + s4 + s5))/2;
+    Wait(10);
+  }
+  sila_int = round(sila);
+  supersila_int = round(supersila);
+
+  DeleteFile("CAL_ball.txt");
+  CreateFile("CAL_ball.txt", 1024, fh);
+  
+  WriteLn(fh,sila_int);
+  WriteLn(fh,supersila_int);
+
+  CloseFile(fh);
+
+  Wait(500);
+  
+  OpenFileRead("CAL_ball.txt",fsize,fh);
+  ReadLn(fh,sila_int);
+  ReadLn(fh,supersila_int);
+  CloseFile(fh);
+
+  TextOut(0, LCD_LINE3, "FILE OK");
+
+  TextOut(0, LCD_LINE5, "SUPERSILA:");
+  NumOut(0, LCD_LINE6, supersila_int);
+  TextOut(0, LCD_LINE7, "SILA:");
+  NumOut(0, LCD_LINE8, sila_int);
+
+  Wait(1000);
+
+  while (!ButtonPressed(BTNCENTER, true));
+
+  ClearScreen();
+
+  if(abs(sila_int - supersila) < 10 )
+  {
+  repeat (10)
+    {
+    ClearLine(LCD_LINE7);
+    Wait(250);
+    TextOut(0, LCD_LINE7, "BALL DISABLED!");
+    Wait(250);
+    }
+  }
+
+
+
+  while (SensorUS(IN_4) == 0 && CurrentTick()<500);
+
+  if(SensorUS(IN_4) > 0)
+  {
+  TextOut(0, LCD_LINE8, "US OK");
+  }
+  else
+  {
+  repeat (10)
+    {
+    ClearLine(LCD_LINE8);
+    Wait(250);
+    TextOut(0, LCD_LINE8, "US ERROR");
+    Wait(250);
+    }
+  }
+
+  Wait(1000);
+
+  while (!ButtonPressed(BTNCENTER, true));
+}
+

@@ -1,0 +1,198 @@
+int time = 20000;
+int base_napad = 150;
+int base_vratar = 175;
+int base = 0;
+int robot = 0;
+int startspeed = 20;
+float diameter = 81.6;
+
+//Флаг, отслеживающий нажатие центральной кнопки
+bool flExit = false;
+
+//Удачно ли прошла калибровка
+bool bSuccess;
+
+//=====================================================================
+// bool HTCompassCalibrateStart(const byte & port)
+//
+// Set HiTechnic Compass to Calibrate mode.  While in Calibrate mode,
+// robot should slowly turn more than 360 degrees for duration of about
+// 20 seconds.  Call HTCompassCalibrateStop to stop calibration mode.
+//
+bool HTCompassCalibrateStart(const byte & port)
+{
+  int count;
+  byte inI2Ccmd[];
+  char outbuf[];
+
+  ArrayInit(inI2Ccmd, 0, 3);
+  inI2Ccmd[0] = 0x02;
+  inI2Ccmd[1] = 0x41;     // Mode:
+  inI2Ccmd[2] = 0x43;     // Calibrate
+
+  count=0;
+  return I2CBytes(port, inI2Ccmd, count, outbuf);
+}
+
+//---------------------------------------------------------------------
+// bool HTCompassCalibrateStop(const byte & port)
+//
+// Stop the Calibration mode that was started by
+// HTCompassCalibrateStart.  Returns true if the calibration was
+// successful.
+bool HTCompassCalibrateStop(const byte & port)
+{
+  int count;
+  byte inI2Ccmd[];
+  char outbuf[];
+  bool bSuccess;
+
+  if (port > IN_4)
+    return false;
+
+  ArrayInit(inI2Ccmd, 0, 3);
+  inI2Ccmd[0] = 0x02;
+  inI2Ccmd[1] = 0x41; // Mode
+  inI2Ccmd[2] = 0x00; // Normal Read
+
+  count=0;
+  bSuccess = I2CBytes(port, inI2Ccmd, count, outbuf);
+
+  if (bSuccess) {
+    Wait(100);
+
+    // Read back location 0x41 to see if successful
+    ArrayInit(inI2Ccmd, 0, 2);
+    inI2Ccmd[0] = 0x02;
+    inI2Ccmd[1] = 0x41;    // Mode
+
+    count=1;
+    bSuccess = I2CBytes(port, inI2Ccmd, count, outbuf);
+
+    if (bSuccess) {
+      bSuccess = (outbuf[0] == 0);
+    }
+  }
+  return (bSuccess);
+}
+
+
+task main()
+{
+  SetSensorLowspeed(IN_2);
+  
+  ClearScreen();
+  TextOut(0, LCD_LINE1, "FFF F F F   F  ");
+  TextOut(0, LCD_LINE2, "F   F F F   F  ");
+  TextOut(0, LCD_LINE3, "FFF F F F   F  ");
+  TextOut(0, LCD_LINE4, "F   F F F   F  ");
+  TextOut(0, LCD_LINE5, "F   FFF FFF FFF");
+  TextOut(0, LCD_LINE6, "COMPASSS CALIB !!!");
+  TextOut(0, LCD_LINE7, " LEFT < NAPAD");
+  TextOut(0, LCD_LINE8, " RIGHT > VRATAR");
+
+  while (!flExit)
+  {
+    if (ButtonPressed(BTNCENTER, true) && robot != 0) flExit = true;
+    if (ButtonPressed(BTNLEFT, true))
+    {
+      ClearScreen();
+      TextOut(0, LCD_LINE7, "NAPAD SELECT");
+      base = base_napad;
+      robot = 1;
+    }
+    if (ButtonPressed(BTNRIGHT, true))
+    {
+      ClearScreen();
+      TextOut(0, LCD_LINE8, "VRATAR SELECT");
+      base = base_vratar;
+      robot = 2;
+    }
+  }
+
+  ClearScreen();
+  Wait(1000);
+  flExit = false;
+  
+  int speed = startspeed;
+
+  while (!flExit)
+  {
+  if (ButtonPressed(BTNRIGHT, true))
+    {
+    ClearScreen();
+    Wait(1000);
+    }
+
+  if (!flExit)
+    {
+    ResetRotationCount(OUT_BC);
+
+    long timestart = CurrentTick();
+    while(CurrentTick() - timestart < time)
+    {
+      OnFwdRegEx(OUT_C, speed, OUT_REGMODE_SPEED, RESET_NONE);
+      OnRevRegEx(OUT_B, speed, OUT_REGMODE_SPEED, RESET_NONE);
+      if (robot == 1)
+      {
+        speed = startspeed + MotorRotationCount(OUT_A)/10;
+      }
+      else
+      {
+        speed = startspeed - MotorRotationCount(OUT_A)/10;
+      }
+    }
+    Off(OUT_BC);
+    }
+
+  while (!ButtonPressed(BTNCENTER, true) && !ButtonPressed(BTNRIGHT, true))
+  {
+    // вывод на экран
+    ClearScreen();
+    TextOut(0, LCD_LINE5, "ENC ERROR %");
+    NumOut(0, LCD_LINE6, (MotorRotationCount(OUT_C)*diameter/base-630)/630 * 100);
+
+    TextOut(0, LCD_LINE7, "NEW SPEED:");
+    NumOut(0, LCD_LINE8, speed);
+    
+    if (robot == 1)
+    {
+      speed = startspeed + MotorRotationCount(OUT_A)/10;
+    }
+    else
+    {
+      speed = startspeed - MotorRotationCount(OUT_A)/10;
+    }
+    
+    Wait(200);
+  }
+
+  if (ButtonPressed(BTNCENTER, true)) flExit = true;
+
+  }
+
+  ClearScreen();
+  Wait(1000);
+
+  OnFwdRegEx(OUT_C, speed, OUT_REGMODE_SPEED, RESET_NONE);
+  OnRevRegEx(OUT_B, speed, OUT_REGMODE_SPEED, RESET_NONE);
+  HTCompassCalibrateStart(S2);
+  Wait(time);
+  bSuccess = HTCompassCalibrateStop(S2);
+  Off(OUT_BC);
+
+  if (bSuccess)
+  {
+  TextOut(0, LCD_LINE7, "CALIBR. OK");
+  }
+  else
+  {
+  TextOut(0, LCD_LINE7, "ERROR CALIBR");
+  }
+
+  Wait(1000);
+  
+  while (!ButtonPressed(BTNCENTER, true));
+
+}
+

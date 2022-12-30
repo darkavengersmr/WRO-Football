@@ -1,0 +1,767 @@
+// Переменные для сохранения координат робота(x,y)
+long Xtime = 0;// Время устаревания X
+long Ytime = 0;// Время устаревания Y
+int X = 2;
+int Y = 2;
+int Xout = 0;// Отправляемые переменные(BT)
+int Yout = 0;
+
+
+// Переменные для PID регулирования
+int ERR = 0;// ERR(ошибка) PID регулирования
+int ERR_OLD = 0;// ERR_OLD(старая ошибка) PID регулирования
+int u = 0;// Воздействие
+float Pk = 0.55;// Койифиценты
+float Dk = 2;
+
+//Массивы
+int CAL_P[4][4];
+int CAL_O[4][4];
+
+
+// Переменные для работы с мячом
+int s1, s2, s3, s4, s5,dir;// Для сохранения пoказаний 5 маяков и направления
+int zona_360 = 0;// Направление на мяч
+int sum_sil = 0;// Сумма сил s1,s2,s3,s4,s5
+int sever = 0;// Направление на ворота противника
+int sever_CAL = 0;// Калиброванное направление на ворота противника
+int ug = 0;// Направление на свои ворота
+int Right_P,Right_O,Left_P,Left_O;
+
+// чтение файла калибровки
+int sila = 85;// Калиброванные границы растаяния до мяча
+int supersila = 115;
+
+
+// Прочие переменные
+int speed = 75;// Скорость
+int speed_pov = 75;
+int CompassValue_old = 0;
+int CompassValue = 0;// Показания компаса
+int US = 80;// Показания US
+int CENTER_Vozvrat = 80;// Показания US на центре поля
+int CENTER_Ravn = 90;
+int schetchic_ball = 0;
+int schetchic_compass = 0;
+int S = 0;// Прошлая zona_360
+int AttackAzimut = 2;// Зона направления атаки
+int Step = 25; // размер "шага" при возврате, в градусах
+int AttackAzimutSteps[128];// Массив записи
+int AttackEnc = 0;
+int p = 1; // попытка возврата;
+int VozvratCompassDelta = 0; // Поправка при возврате по компасу, - влево + вправо
+bool Game = true;// Примая\Обратная игра
+bool USOn = false;// Подключен US
+bool BTOn = false;// Подключен блютуз
+bool OutBT = false;// Передоват ли по блютузу
+bool OUT = false;
+bool restart = false;
+bool udar_motor = false;// Бьём ли мяч
+bool game_start = false;// Конец чтения файлов
+bool in_goals = true;// В воротах
+
+
+// MASTER
+#define BT_CONN 1
+#define OUTBOX_X 5
+#define OUTBOX_Y 6
+
+void Perevorot()// Переворот массивов для обратной игры
+{
+  PlaySound(SOUND_FAST_UP);
+
+  Game = false;
+  int tmp;
+  tmp = ug; ug = sever_CAL; sever_CAL = tmp;
+  
+  Right_P = Right_O;
+  Left_P = Left_O;
+
+  CAL_P[1][1] = CAL_O[1][1];
+  CAL_P[1][2] = CAL_O[1][2];
+  CAL_P[1][3] = CAL_O[1][3];
+  CAL_P[2][1] = CAL_O[2][1];
+  CAL_P[3][2] = CAL_O[3][2];
+  CAL_P[3][3] = CAL_O[3][3];
+}
+
+sub MyMotor(int speed_B, int speed_C)// Для передвижения по полю
+{
+  // Не подоём на мотор > 100 или < -100
+
+  if (speed_B < -100) speed_B = -100;
+  if (speed_B > 100) speed_B = 100;
+
+  if (speed_C < -100) speed_C = -100;
+  if (speed_C > 100) speed_C = 100;
+
+  OnRev(OUT_B, speed_B);
+  OnRev(OUT_C, speed_C);
+}
+
+int CompassTarget(int Target)// Для расчёта откланения от Target
+{
+  return (CompassValue + 540 - Target)%360 - 180;
+}
+
+void OutXY()// Для отправки по блютузу
+ //В нём мы отправляем x и y
+{
+   int min = 360;
+   //PlayTone(440, 25);
+
+   for (int j = 1; j <= 3; j++)
+   {
+     for (int i = 1; i <= 3; i++)
+     {
+       // Перебор отклонений для нахождения менимального
+       int tmp = abs((CompassValue + 540 - CAL_P[i][j])%360 - 180);
+       if (tmp <= min)
+       {
+         min = tmp;
+         Xout = i;
+         Yout = j;
+       }
+     }
+   }
+
+   //ClearScreen();
+   //NumOut(0,LCD_LINE7,Xout);
+   //NumOut(0,LCD_LINE8,Yout);
+      
+   SendRemoteNumber(BT_CONN,OUTBOX_X,Xout);
+   Wait(10);
+   SendRemoteNumber(BT_CONN,OUTBOX_Y,Yout);
+
+}
+ 
+
+void zastrevanie (bool compass, bool ball) // Блок для отслеживания застревания
+// OUT: restart
+{
+  int graniza;
+  if (!compass) schetchic_compass = 0;
+  if (!ball)
+  {
+    schetchic_ball = 0;
+    graniza = 175;
+  }
+  else
+  {
+    graniza = 475;
+  }
+
+  if (compass)
+  {
+    if(abs(CompassValue - CompassValue_old) < 5)
+    {
+      schetchic_compass = schetchic_compass + 1;
+    }
+    else
+    {
+      schetchic_compass = 0;
+    }
+  }
+
+  if (ball)
+  {
+    if(dir>3 && dir<7)
+    {
+      schetchic_ball = 0;
+    }
+    else
+    {
+      schetchic_ball = schetchic_ball + 1;
+    }
+  }
+
+  if((schetchic_ball + schetchic_compass)>graniza)
+  {
+    OnFwd(OUT_BC, 100);
+    Wait(750);
+    Float(OUT_BC);
+    restart = true;
+    schetchic_ball = 0;
+    schetchic_compass = 0;
+  }
+  CompassValue_old = CompassValue;
+}
+
+sub PID (int pokaz, int strem)// Мой блок для задач PD-регулирования
+// OUT: u
+{
+  ERR_OLD = ERR;
+  ERR = pokaz - strem;
+  u = ERR*Pk + (ERR - ERR_OLD)*Dk;
+}
+
+void MyIRSeeker()// Мой блок для работы с IRSeeker
+// OUT: zona_360,sum_sil
+{
+  ReadSensorHTIRSeeker2AC(IN_1,dir, s1, s2, s3, s4, s5);
+  sum_sil = s1+s2+s3+s4+s5;
+
+  // Если не видем мяч то считаем что он там где его последний раз видели
+
+  if (dir == 0)
+  {
+    if (S >= 0)
+    {
+      S = 180;
+    }
+    else
+    {
+      S = -180;
+    }
+  }
+  else
+  {
+    // Если видим мяч то расчёт направления по формуле
+    if (sum_sil !=0) S = ((s1*1000 + s2*2000 + s3*3000 + s4*4000 + s5*5000)/sum_sil - 3500)/11.11111;
+  }
+  zona_360 = S;
+
+}
+
+int round(float Num_float)// Для округления числа в ближайшую сторону
+{
+  int Num_tmp = Num_float;
+  if (Num_float - Num_tmp >= 0.5)
+  {
+    Num_tmp = ceil(Num_float);
+  }
+  else
+  {
+    Num_tmp = floor(Num_float);
+  }
+  return Num_tmp;
+}
+
+sub BTConnect()// Для соеденения по блютузу
+{
+  CommBTConnectionType args;
+
+  args.Name = "ks1"; // whatever the slave NXT's name is
+  args.ConnectionSlot = BT_CONN; // this is the desired connection slot (the above code uses 1)
+  args.Action = TRUE; // could use some #define with a non-zero value to connect.  0 == disconnect
+
+  if(!BluetoothStatus(BT_CONN)==NO_ERR)
+  {
+    SysCommBTConnection(args);
+    //Wait(5000);
+  }
+}
+
+sub BTCheck(int conn)// Проверка соедения по блютузу
+{
+  if (BluetoothStatus(conn) == NO_ERR) BTOn = true;
+  else BTConnect();
+}
+
+bool inRange(int Left, int Right)// Проверка попадает ли компас в диапазон
+{
+  bool Rev;
+
+  if (Right > Left)
+  {
+    if (CompassValue < Right && CompassValue > Left)
+    {
+      Rev = true;
+    }
+    else
+    {
+      Rev = false;
+    }
+  }
+  else
+  {
+    if (CompassValue >= 0 && CompassValue < Right || CompassValue > Left)
+    {
+      Rev = true;
+    }
+    else
+    {
+      Rev = false;
+    }
+  }
+  return Rev;
+}
+
+void us()// Обнавление US по совпадению угла
+{
+if (USOn && abs(CompassTarget(sever)) < 10)
+  {
+  int US_tmp = SensorUS(IN_4);
+  if (US_tmp != 0 && US_tmp != 255) US = 0.9*US+0.1*US_tmp; //* cos(abs(CompassTarget(sever)));
+  }
+}
+
+void Attack()// Для отбивания мяча от ворот
+{
+  udar_motor = true;
+  ERR = 0;
+
+  ReadSensorHTIRSeeker2AC(IN_1,dir, s1, s2, s3, s4, s5);
+
+  ResetRotationCount(OUT_BC);
+
+  in_goals = false;
+
+  while(dir>4 && dir<8 && (MotorRotationCount(OUT_B)+ MotorRotationCount(OUT_C)) / 2 > -1250)
+  {
+    MyIRSeeker();
+
+    PID(zona_360,0);
+
+    // Запись AttackAzimut направления атаки мяча для возврата
+    if(abs(CompassValue-CAL_P[3][1]) < abs(CompassValue-CAL_P[3][3])) AttackAzimut = 1;
+    else AttackAzimut = 3;
+    
+    // каждые Step градусов пути записываем в массив направление
+    int last_step = abs(((MotorRotationCount(OUT_B)+ MotorRotationCount(OUT_C)) / 2)) / Step;
+    //if (last_step > 1)
+    //{
+    //AttackAzimutSteps[last_step] = 0.5*CompassValue + 0.5*AttackAzimutSteps[last_step-1];
+    //}
+    //else
+    //{
+    AttackAzimutSteps[last_step] = CompassValue;
+    //}
+
+    //MyMotor(100 + 2*u, 100 - 2*u);
+    MyMotor(100 + 1.5*u, 100 - 1.5*u);
+    /*
+    if (sum_sil < supersila)
+    {
+      MyMotor(100 + u, 100 - u);
+    }
+    else
+    {
+      MyMotor(100 - 2*CompassTarget(sever), 100 + 2*CompassTarget(sever));
+    }
+    */
+  }
+  
+  Off(OUT_BC);
+  AttackEnc = abs((MotorRotationCount(OUT_B) + MotorRotationCount(OUT_C)) / 2);
+  udar_motor = false;
+  p = 1; // попытка возврата;
+}
+
+task logic()// Для обнавления компаса, чтения файлов, переворотов и передачи по блютузу
+{
+
+  int fsize,tmp;
+  byte fh,fg;
+
+  OpenFileRead("CAL_ball.txt",fsize,fg);
+
+  ReadLn(fg,sila);
+  ReadLn(fg,supersila);
+  
+  CloseFile(fg);
+
+  OpenFileRead("CAL_Comp_2.txt",fsize,fh);
+  
+  ReadLn(fh,sever_CAL);
+  ReadLn(fh,ug);
+  
+  ReadLn(fh,Right_P);
+  ReadLn(fh,Right_O);
+  
+  ReadLn(fh,Left_P);
+  ReadLn(fh,Left_O);
+  
+  for(int y = 1; y <= 3; y++)
+  {
+    for(int x = 1; x <= 3; x++)
+    {
+      ReadLn(fh,tmp);
+      CAL_P[x][y] = tmp;
+
+      ReadLn(fh,tmp);
+      CAL_O[x][y] = tmp;
+    }
+  }
+  CloseFile(fh);
+  
+  if(abs(sever-ug) < abs(sever-sever_CAL)) Perevorot();
+  sever = sever_CAL;
+
+  game_start = true;
+
+  long time = CurrentTick();
+
+  while(true)
+  {
+    CompassValue = SensorHTCompass(IN_2);
+    
+    if ((CurrentTick() - time)>500 && OutBT && BTOn)
+    {
+      time = CurrentTick();
+      OutXY();
+    }
+
+    if((CurrentTick() - time)>2000 && !BTOn)
+    {
+    BTCheck(BT_CONN);
+    time = CurrentTick();
+    }
+
+
+  }
+}
+
+
+void Turn2Compass(int Target)// Разворт по компасу на Target
+{
+  ERR = 0;
+  
+  long time_start = CurrentTick();
+
+  while (CurrentTick()-time_start < 4000 && abs(CompassTarget(Target)) > (CurrentTick()-time_start)/250)
+  {
+    PID (CompassTarget(Target),0);
+    us();
+    MyMotor(-4*u,4*u);
+  }
+
+  Off(OUT_BC);
+}
+
+void Move2CompassEnc(int Target, int Gradus)// Езда по градусам на Target
+{
+  ERR = 0;
+  ResetRotationCount(OUT_B);
+  if (Gradus < 0)
+  {
+    while (MotorRotationCount(OUT_B) < -1*Gradus)
+    {
+      PID (CompassTarget(Target),0);
+      us();
+      MyMotor(-100-3*u,-100+3*u);
+    }
+  }
+  else
+  {
+    while (MotorRotationCount(OUT_B) > -1*Gradus)
+    {
+      PID (CompassTarget(Target),0);
+      us();
+      MyMotor(100-3*u,100+3*u);
+    }
+  }
+
+  Off(OUT_BC);
+}
+
+void Move2CompassTime(int Target, bool napr, int Time)// Езда по Времени на Target
+{
+  ERR = 0;
+  long time = CurrentTick();
+  while (CurrentTick() - time < Time)
+  {
+    PID (CompassTarget(Target),0);
+    us();
+    if (napr) MyMotor(100-u,100+u);
+    else MyMotor(-100-u,-100+u);
+  }
+
+  Float(OUT_BC);
+}
+
+void Move2GoalsUS()// Движение на ворота по US
+{
+  ERR = 0;
+
+  long time = CurrentTick();
+
+  while ((CurrentTick() - time)<8000 && SENSOR_3 == 0)
+  {
+    // проверить сколько на дальномере на центре ворот
+    us();
+    PID(US,CENTER_Vozvrat);
+    MyMotor(-1*speed/1.5 - 0.5*u,-1*speed/1.5 + 0.5*u);
+
+    if (abs(CompassTarget(sever)) > 25)
+    {
+    Turn2Compass(sever);
+    ERR = 0;
+    }
+  }
+  if (SENSOR_3 == 1)
+  {
+  Move2CompassEnc(sever, 100);
+  in_goals = true;
+  }
+  
+}
+
+
+void Zachita()// Блок для защиты ворот (отслеживания мяча)
+{
+  OutBT = true;
+
+  MyIRSeeker();
+
+  long time = CurrentTick();
+
+  while (!(sum_sil>sila && dir>4 && dir<8) || !inRange(Left_P,Right_P) )
+  {
+    MyIRSeeker();
+
+    PID(zona_360,0);
+
+    if(dir == 0) u = 0;
+    MyMotor(1.5*u,-1.5*u);
+    //MyMotor(u,-1*u);
+    
+    us();
+
+    if (sum_sil < sila/2 && CurrentTick() - time > 3000)
+    {
+    time = CurrentTick();
+    if (US > CENTER_Ravn + 10 && US < CENTER_Ravn + 30)
+      {
+      in_goals = false;
+      Turn2Compass(CAL_P[3][1]);
+      Move2CompassEnc(CAL_P[3][1],50);
+      Turn2Compass(sever);
+
+      int i = 0;
+      while (i < 8 && SENSOR_3 == 0)
+        {
+        Move2CompassTime(sever, false, 250);
+        i++;
+        }
+      if (SENSOR_3 == 1)
+        {
+        Move2CompassEnc(sever, 100);
+        in_goals = true;
+        }
+      }
+
+    if (US < CENTER_Ravn - 10 && US > CENTER_Ravn - 30)
+      {
+      in_goals = false;
+      Turn2Compass(CAL_P[3][3]);
+      Move2CompassEnc(CAL_P[3][3],50);
+      Turn2Compass(sever);
+
+      int i = 0;
+      while (i < 8 && SENSOR_3 == 0)
+        {
+        Move2CompassTime(sever, false, 250);
+        i++;
+        }
+      if (SENSOR_3 == 1)
+        {
+        Move2CompassEnc(sever, 100);
+        in_goals = true;
+        }
+      }
+    }
+    if (!in_goals)
+      {
+      p = 2; // попытка возврата;
+      break;
+      }
+  }
+
+  OutBT = false;
+}
+
+
+void VozvratUS()// Возврат по US
+{
+
+  if (AttackAzimut == 3)
+  {
+    Turn2Compass(sever);
+    Move2CompassEnc(sever, 300);
+  
+    Turn2Compass(Left_P);
+    Move2CompassEnc(Left_P, -500);
+  }
+
+  Turn2Compass(sever);
+  Move2CompassTime(sever, true, 350);
+  
+  us();
+  
+  int US_tmp = US;
+  
+  if (US_tmp < 72 || US_tmp > 96)
+  {
+    if (US_tmp < 72)
+    {
+      Turn2Compass(Right_P);
+      Move2CompassEnc(Right_P, -360*((CENTER_Vozvrat - US_tmp) / (8.16*3.14)));
+      Turn2Compass(sever);
+      Move2CompassEnc(sever, -200);
+      us();
+      US_tmp = US;
+    }
+    else if (US_tmp > 96)
+    {
+      Turn2Compass(Left_P);
+      Move2CompassEnc(Left_P, -360*((US_tmp - CENTER_Vozvrat) / (8.16*3.14)));
+      Turn2Compass(sever);
+      Move2CompassEnc(sever, -200);
+      us();
+      US_tmp = US;
+    }
+  }
+  
+  Move2GoalsUS();
+  AttackAzimut = 2;
+}
+
+
+void VozvratEnc()// Возврат по градусам
+{
+  // Тупой вариант возврата
+  
+  Turn2Compass(sever);
+  Move2CompassEnc(sever, 1000);
+  
+  if (AttackAzimut == 2)
+  {
+    if (Random(100) > 50) AttackAzimut = 3;
+    else AttackAzimut = 1;
+  }
+  
+  if (AttackAzimut == 1)
+  {
+    Turn2Compass(Right_P);
+    Move2CompassTime(Right_P, true, 5000);
+    Move2CompassEnc(Right_P, -360*(86 / (8.16*3.14)));
+  }
+  if (AttackAzimut == 3)
+  {
+    Turn2Compass(Left_P);
+    Move2CompassTime(Left_P, true, 5000);
+    Move2CompassEnc(Left_P, -360*(86 / (8.16*3.14)));
+  }
+  Turn2Compass(sever);
+  
+  int i = 0;
+  while (i < 8 && SENSOR_3 == 0)
+    {
+    Move2CompassTime(sever, false, 500);
+    i++;
+    }
+
+  if (SENSOR_3 == 1)
+  {
+  Move2CompassEnc(sever, 100);
+  in_goals = true;
+  }
+}
+
+
+void VozvratCompass()
+{
+  // Возврат по компасу (воспроизведение записи)
+  ERR = 0;
+  for (int i=AttackEnc/Step; i>0; i--)
+  {
+   ResetRotationCount(OUT_BC);
+   while ((MotorRotationCount(OUT_B)+MotorRotationCount(OUT_C))/2 < Step && SENSOR_3 == 0)
+    {
+    PID (CompassTarget(AttackAzimutSteps[i]),VozvratCompassDelta);
+    MyMotor(-100-3*u,-100+3*u);
+    }
+  }
+  
+  int i = 0;
+  while (i < 8 && SENSOR_3 == 0)
+    {
+    Move2CompassTime(sever, false, 500);
+    i++;
+    }
+
+  if (SENSOR_3 == 1)
+  {
+  Move2CompassEnc(sever, 100);
+  in_goals = true;
+  }
+}
+
+
+task udar()// Для включения пеналок и их парковки
+{
+  int reg;
+
+  while(true)
+   {
+   if (udar_motor && sum_sil > sila)
+    {
+      OnRev(OUT_A, 100);
+    }
+    else
+    {
+      reg = MotorRotationCount(OUT_A) % 180;
+
+      if (reg < -90) reg = reg + 180;
+
+      OnFwd(OUT_A, -1 * reg);
+    }
+
+  }
+}
+
+
+
+task main()
+{
+  // Иницилизируем датчики
+  SetSensorLowspeed(IN_1);
+  SetSensorLowspeed(IN_2);
+  SetSensorTouch(IN_3);
+  SetSensorLowspeed(IN_4);
+
+  while (SensorUS(IN_4) == 0 && CurrentTick()<500);
+  if(SensorUS(IN_4) > 0) USOn = true;
+  
+  sever = SensorHTCompass(IN_2);
+  
+
+  start logic;
+  
+  BTCheck(BT_CONN);
+  if (!BTOn) BTConnect();
+  
+  while (!game_start);
+  
+  start udar;
+
+  OnFwd(OUT_BC,100);
+  while (SENSOR_3 == 0);
+  // добавить время в течении которого нужно вернуться на ворота (p=2)
+  Move2CompassEnc(sever, 75);
+  in_goals = true;
+  
+  while(true)
+  {
+
+    Zachita();
+
+    Attack();
+    // для тестирования возвратов
+
+    in_goals = false;
+    
+
+    while (!in_goals)
+      {
+      if (p == 1) VozvratCompass();
+      if (USOn && !in_goals) VozvratUS();
+      if (!in_goals) VozvratEnc();
+      p++;
+      }
+
+    Off(OUT_BC);
+
+  }
+}
