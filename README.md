@@ -1,7 +1,9 @@
 # WRO-Football
 
 World Robot Olympiad
+
 WRO Football, сезоны 2015-2016
+
 Команда робототехников "Карандаш и Самоделкин"
 
 https://www.youtube.com/watch?v=TLmyU0eD47U 
